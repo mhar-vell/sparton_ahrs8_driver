@@ -1,193 +1,194 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import rospy
-import serial, math
-from geometry_msgs.msg import Quaternion
+import serial
+import math
+import glob
+import os
+from geometry_msgs.msg import Quaternion, Twist, Vector3
 from sensor_msgs.msg import Imu
 
 import tf
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 
-# Verify the checksum obtained in the NMEA message.
+def find_sparton_device():
+    """
+    Find Sparton AHRS8 device on macOS/Linux
+    Returns the device path or None if not found
+    """
+    # Known Sparton AHRS8 serial numbers
+    known_serials = ['FTFUUTW1', 'FTFUXGRZ', 'FTFUT9EB']
+    
+    # Check for macOS USB serial devices
+    macos_devices = glob.glob('/dev/tty.usbserial-*')
+    for device in macos_devices:
+        # Extract serial number from device name
+        if any(serial in device for serial in known_serials):
+            return device
+    
+    # Check for Linux USB devices  
+    linux_devices = glob.glob('/dev/ttyUSB*')
+    if linux_devices:
+        # On Linux, we'd need to check udev info, but for now return first device
+        # This could be enhanced to check actual serial numbers
+        return linux_devices[0]
+    
+    return None
+
 def verify_checksum(response):
-    # strip leading $
-    message_and_checksum = response.strip("$")
-    # split into message text and trailing checksum as a 2-tuple
-    message_and_checksum = message_and_checksum.split("*")
-    # message text is first component, checksum second.  Make sure we strip whitespace.
-    message = message_and_checksum[0]
-    checksum = message_and_checksum[1].strip()
-
+    message_and_checksum = response.strip(b"$").split(b"*")
+    if len(message_and_checksum) != 2:
+        return False
+    message, checksum = message_and_checksum
+    checksum = checksum.strip()
     calculated_checksum = 0
-
-    # NMEA checksums are obtained by xor'ing the ascii value of every character between $ and *
     for character in message:
-        calculated_checksum = calculated_checksum ^ ord(character)
+        calculated_checksum ^= character
+    hexstring = '{:02X}'.format(calculated_checksum)
+    return checksum.upper() == hexstring.encode('utf-8')
 
-    # Get the 2 digit hex representation of the result.
-    hexstring = format(calculated_checksum, "02X")
-    # Return if the checksums match or not.
-    return hexstring == checksum
-
-# Populate message angular velocity values.
 def populate_G(string, message):
-    split_string = string.split(",")
-    # Split off each value expression "<a>=<value>" as a string.
-    Gx_string = split_string[1]
-    Gy_string = split_string[2]
-    # Split checksum off of last output string.
-    Gz_string = split_string[3].split("*")[0]
+    split_string = string.decode('utf-8').split(",")
+    Gx_float = millidegrees_to_radians(float(split_string[1].split("=")[1]))
+    Gy_float = millidegrees_to_radians(float(split_string[2].split("=")[1]))
+    Gz_float = millidegrees_to_radians(float(split_string[3].split("*")[0].split("=")[1]))
+    message.angular_velocity = Vector3(Gx_float, -Gy_float, -Gz_float)
 
-    # Parse the angular velocity values.
-    Gx_float = millidegrees_to_radians(float(Gx_string.split("=")[1]))
-    Gy_float = millidegrees_to_radians(float(Gy_string.split("=")[1]))
-    Gz_float = millidegrees_to_radians(float(Gz_string.split("=")[1]))
-
-    # Populate the message using X FORWARD Y LEFT Z UP
-    message.angular_velocity.x = Gx_float
-    message.angular_velocity.y = -Gy_float
-    message.angular_velocity.z = -Gz_float
-
-# Populate message quaternion data
 def populate_QUAT(string, message):
-    split_string = string.split(",")
-    # Split off each value expression "<a>=<value>" as a string.
-    w_string = split_string[1]
-    x_string = split_string[2]
-    y_string = split_string[3]
-    # Split checksum off of last output string.
-    z_string = split_string[4].split("*")[0]
-
-    # Parse the quaternion values.
-    w_float = float(w_string.split("=")[1])
-    x_float = float(x_string.split("=")[1])
-    y_float = float(y_string.split("=")[1])
-    z_float = float(z_string.split("=")[1])
-
-    # Build euler angle array (r,p,y) from quaternion using ENU convention.
+    split_string = string.decode('utf-8').split(",")
+    w_float = float(split_string[1].split("=")[1])
+    x_float = float(split_string[2].split("=")[1])
+    y_float = float(split_string[3].split("=")[1])
+    z_float = float(split_string[4].split("*")[0].split("=")[1])
     euler = euler_from_quaternion([y_float, x_float, -z_float, w_float])
-
-    # Reference is still 0 yaw facing north, -pi/2 East.  Add pi/2 to zero yaw when facing East.
-    # Get new quaternion from this modification. Returned as (x, y, z, w)
     quat = quaternion_from_euler(euler[0], euler[1], euler[2] + math.pi/2)
+    message.orientation = Quaternion(quat[0], quat[1], quat[2], quat[3])
 
-    # Populate IMU message using ENU coordinate convention.
-    message.orientation.w = quat[3]
-    message.orientation.x = quat[0]
-    message.orientation.y = quat[1]
-    message.orientation.z = quat[2]
-
-# Populate linear acceleration data.
 def populate_A(string, message):
-    split_string = string.split(",")
-    # Split off each value expression "<a>=<value>" as a string.
-    Ax_string = split_string[1]
-    Ay_string = split_string[2]
-    # Split checksum off of last output string.
-    Az_string = split_string[3].split("*")[0]
+    split_string = string.decode('utf-8').split(",")
+    Ax_float = millig_to_meter(float(split_string[1].split("=")[1]))
+    Ay_float = millig_to_meter(float(split_string[2].split("=")[1]))
+    Az_float = millig_to_meter(float(split_string[3].split("*")[0].split("=")[1]))
+    message.linear_acceleration = Vector3(-Ax_float, Ay_float, Az_float)
 
-    # Parse the linear acceleration values.
-    Ax_float = millig_to_meter(float(Ax_string.split("=")[1]))
-    Ay_float = millig_to_meter(float(Ay_string.split("=")[1]))
-    Az_float = millig_to_meter(float(Az_string.split("=")[1]))
-
-    # Populate the message using X FORWARD Y LEFT Z UP
-    message.linear_acceleration.x = -Ax_float
-    message.linear_acceleration.y = Ay_float
-    message.linear_acceleration.z = Az_float
+#def euler():
+#    pub = rospy.Publisher('imu/euler', Vector3, queue_size=10)
+#    rospy.init_node('imu', anonymous=True)
+#    rate = rospy.Rate(10) # 10hz
+#    while not rospy.is_shutdown():
+#        hello_str = "hello world %s" % rospy.get_time()
+#        rospy.loginfo(hello_str)
+#        pub.publish(hello_str)
+#        rate.sleep()
 
 def millidegrees_to_radians(value):
-    return (value/1000) * (math.pi/180.0)
+    return (value / 1000.0) * (math.pi / 180.0)
 
 def millig_to_meter(value):
-    return (value/1000) * 9.81
+    return (value / 1000.0) * 9.81
 
-# Set all covariance matrices to one matrix.
-# Only needed until we understand better how to deal with the covariance of each data set.
 def set_all_covariance(imu_msg, covariance_matrix):
-    # Copy covariance_matrix to each imu_msg covariance
-    for i in range(0, 9):
-        imu_msg.orientation_covariance[i] = covariance_matrix[i]
-        imu_msg.angular_velocity_covariance[i] = covariance_matrix[i]
-        imu_msg.linear_acceleration_covariance[i] = covariance_matrix[i]
+    imu_msg.orientation_covariance = covariance_matrix
+    imu_msg.angular_velocity_covariance = covariance_matrix
+    imu_msg.linear_acceleration_covariance = covariance_matrix
 
 if __name__ == '__main__':
-    # Initialize node
-    rospy.init_node("ahrs8_node")
-
-
-    default_port = "/dev/ttyUSB0"
-    default_baud = 115200
-    default_frameid = "ahrs8_imu"
-    compass_port = rospy.get_param("~port", default_port)
-    compass_baud = rospy.get_param("~baud", default_baud)
-    compass_frame = rospy.get_param("~frame_id", default_frameid)
-
-    # Initialize publisher
-    imu_pub = rospy.Publisher("imu/data", Imu, queue_size=10)
-    imu_msg = Imu()
-
-    # Set IMU device transform frame.
-    imu_msg.header.frame_id = compass_frame
-
-    # Default matrix to use for covariance of each measurement set.
-    default_covariance_matrix = [1e-6, 0, 0,
-                                 0, 1e-6, 0,
-                                 0, 0, 1e-6]
-
-    # Populate the imu message with the covariance matrix.
-    set_all_covariance(imu_msg, default_covariance_matrix)
-
-    compass_serial = serial.Serial(compass_port, compass_baud, timeout=1)
-
     try:
-        # Clear all repeating I/O that could be leftover from operation.
-        compass_serial.write("\x13")
-        compass_serial.write("$xxHDM\r\n")
-        compass_serial.write("printmask 0 set drop\r\n")
-        compass_serial.write("printmodulus 0 set drop\r\n")
-        compass_serial.write("printtrigger 0 set drop\r\n")
-
-        rospy.sleep(0.1)
-        # Resume output allowed. Ctrl-Q
-        compass_serial.write("\x11")
-        rospy.sleep(0.1)
-        # Flush all buffers.
-        compass_serial.flushInput()
-        compass_serial.flushOutput()
-        rospy.sleep(0.1)
-    except serial.SerialException:
-        rospy.logerr("AHRS-8: Serial communications not opened properly!")
-
-    rospy.loginfo("AHRS-8: Output reset, beginning to retrieve data.")
-
-    while not rospy.is_shutdown():
-        # Get angular velocity
-        compass_serial.write("$PSPA,G\r\n")
-        response = compass_serial.readline()
-        if (verify_checksum(response)):
-            populate_G(response, imu_msg)
+        rospy.init_node('ahrs8_node')
+        rospy.loginfo("AHRS8 node started successfully")
+        
+        # Try to auto-detect device, fallback to hardcoded default
+        auto_detected_port = find_sparton_device()
+        if auto_detected_port:
+            default_port = auto_detected_port
+            rospy.loginfo("Auto-detected Sparton AHRS8 at: {}".format(default_port))
         else:
-            rospy.logerr("AHRS-8: Bad checksum, skipping dataset.")
-            continue
+            # Fallback defaults for different platforms
+            default_port = '/dev/tty.usbserial-FTFUT9EB'  # macOS default
+            rospy.logwarn("Could not auto-detect device, using default: {}".format(default_port))
+        
+        default_baud = 115200
+        default_frameid = 'ahrs8_imu'
+        default_polling_rate = 10  # Hz
 
-        # Get orientation in ENU convention with East as 0 yaw reference.
-        compass_serial.write("$PSPA,QUAT\r\n")
-        response = compass_serial.readline()
-        if (verify_checksum(response)):
-            populate_QUAT(response, imu_msg)
-        else:
-            rospy.logerr("AHRS-8: Bad checksum, skipping dataset.")
-            continue
+        compass_port = rospy.get_param('~port', default_port)
+        compass_baud = rospy.get_param('~baud', default_baud)
+        compass_frame = rospy.get_param('~frame_id', default_frameid)
+        polling_rate = rospy.get_param('~polling_rate', default_polling_rate)
+        
+        imu_pub = rospy.Publisher('imu', Imu, queue_size=10)
+        eul_pub = rospy.Publisher('imu/euler', Twist, queue_size=10)
+        imu_msg = Imu()
+        eul_msg = Twist()
+        global roll, pitch, yaw
+        imu_msg.header.frame_id = compass_frame
 
-        # Get linear acceleration.
-        compass_serial.write("$PSPA,A\r\n")
-        response = compass_serial.readline()
-        if (verify_checksum(response)):
-            populate_A(response, imu_msg)
-        else:
-            rospy.logerr("AHRS-8: Bad checksum, skipping dataset.")
-            continue
-        imu_msg.header.stamp = rospy.Time.now()
-        # Publish the current message.
-        imu_pub.publish(imu_msg)
+        default_covariance_matrix = [1e-6] * 9
+
+        set_all_covariance(imu_msg, default_covariance_matrix)
+
+        compass_serial = serial.Serial(compass_port, compass_baud, timeout=1)
+
+        try:
+            compass_serial.write(b'\x13')
+            compass_serial.write(b'$xxHDM\r\n')
+            compass_serial.write(b'printmask 0 set drop\r\n')
+            compass_serial.write(b'printmodulus 0 set drop\r\n')
+            compass_serial.write(b'printtrigger 0 set drop\r\n')
+            rospy.sleep(0.1)
+            compass_serial.write(b'\x11')
+            rospy.sleep(0.1)
+            compass_serial.flushInput()
+            compass_serial.flushOutput()
+            rospy.sleep(0.1)
+        except serial.SerialException:
+            rospy.logerr('AHRS-8: Serial communications not opened properly.')
+
+        rospy.loginfo('AHRS-8: Output reset, beginning to retrieve data.')
+        
+        # Set up rate control
+        rate = rospy.Rate(polling_rate)
+        rospy.loginfo('AHRS-8: Polling rate set to {} Hz'.format(polling_rate))
+
+        while not rospy.is_shutdown():
+            compass_serial.write(b'$PSPA,G\r\n')
+            response = compass_serial.readline()
+            if verify_checksum(response):
+                populate_G(response, imu_msg)
+            else:
+                rospy.logerr('AHRS-8: Bad checksum, skipping dataset.')
+                continue
+
+            compass_serial.write(b'$PSPA,QUAT\r\n')
+            response = compass_serial.readline()
+            if verify_checksum(response):
+                populate_QUAT(response, imu_msg)
+            else:
+                rospy.logerr('AHRS-8: Bad checksum, skipping dataset.')
+                continue
+
+            compass_serial.write(b'$PSPA,A\r\n')
+            response = compass_serial.readline()
+            if verify_checksum(response):
+                populate_A(response, imu_msg)
+            else:
+                rospy.logerr('AHRS-8: Bad checksum, skipping dataset.')
+                continue
+
+            imu_msg.header.stamp = rospy.Time.now()
+            imu_pub.publish(imu_msg)
+            orientation_q = imu_msg.orientation
+            orientation_list = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
+            (roll, pitch, yaw) = euler_from_quaternion (orientation_list)
+            eul_msg.linear.x = math.degrees(roll)
+            eul_msg.linear.y = math.degrees(pitch)
+            eul_msg.linear.z = math.degrees(yaw)
+            eul_pub.publish(eul_msg)
+            
+            # Sleep according to polling rate
+            rate.sleep()
+
+    except Exception as e:
+        rospy.logerr("AHRS8 error: {}".format(str(e)))
+        import traceback
+        rospy.logerr("Traceback: {}".format(traceback.format_exc()))

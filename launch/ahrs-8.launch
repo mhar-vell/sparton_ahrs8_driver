@@ -1,14 +1,44 @@
 <!-- Launch file to bring up serial communications with the AHRS-8 -->
 <launch>
     <!-- Launch configuration -->
-    <arg name="port" default="/dev/ttyUSB0" />
+    <!-- Note: The Python script will auto-detect Sparton AHRS8 devices if port is not specified -->
+    <!-- Known devices: /dev/tty.usbserial-FTFUUTW1, /dev/tty.usbserial-FTFUXGRZ, /dev/tty.usbserial-FTFUT9EB -->
+    <arg name="port" default="/dev/tty.usbserial-FTFUT9EB" />
+    <!-- <arg name="baudrate" default="115200" /> -->
+    <!-- <arg name="frame_id" default="fcu" /> -->
+    <arg name="frame_id" default="ahrs8" />
     <arg name="baud" default="115200" />
-    <arg name="frame_id" default="fcu" />
+    <arg name="timeout" default="1000" />
+    <arg name="polling_rate" default="10" />
+    <arg name="comm_type" value="serial" />
+    <!-- <arg name="portrtk" default="/dev/roblux_rtk" />     -->
+    <arg name="portrtk" default="/dev/tty.usbserial-FTFUT9EB" />
+    <arg name="sentences" default="GGA,GST,GSA,GSV" />
+    <arg name="pub_ignored" default="true" />
+    <arg name="parser_debug" default="false" />
+    <!-- <arg name="frame_idrtk" default="gps" /> -->
 
     <!-- Launch an AHRS-8 node. -->
-    <node name="ahrs8_driver" pkg="sparton_ahrs8_driver" type="ahrs8_nmea.py">
+    <node name="ahrs8_driver" pkg="sparton_ahrs8_driver" type="ahrs8_nmea.py" output="screen">
         <param name="port" value="$(arg port)" />
         <param name="baud" value="$(arg baud)" />
+        <param name="timeout" value="$(arg timeout)" />
         <param name="frame_id" value="$(arg frame_id)" />
+        <param name="polling_rate" value="$(arg polling_rate)" />
+        <param name="sentences" value="$(arg sentences)" />
+        <param name="pub_ignored" value="$(arg pub_ignored)" />
+        <param name="parser_debug" value="$(arg parser_debug)" />
     </node>
+
+    <!-- <node pkg="emlid_reach_ros" type="reach_node" name="roblux_rtk" output="screen">
+                <param name="comm_type" value="$(arg comm_type)" />
+                <param name="port" value="$(arg portrtk)" />
+                <param name="baudrate" value="$(arg baudrate)" />
+                <param name="timeout" value="$(arg timeout)" />
+                <param name="polling_rate" value="$(arg polling_rate)" />
+                <param name="sentences" value="$(arg sentences)" />
+                <param name="pub_ignored" value="$(arg pub_ignored)" />
+                <param name="parser_debug" value="$(arg parser_debug)" />
+                <param name="frame_id" value="$(arg frame_idrtk)" />
+    </node> -->
 </launch>
