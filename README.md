@@ -6,6 +6,46 @@ This branch (`b166er`) is specifically adapted for use on **macOS** and with the
 
 For **detailed instructions and troubleshooting**, see [`macOS_Mamba_SETUP.md`](macOS_Mamba_SETUP.md).
 
+### macOS USB Serial Device Orientation
+
+On macOS, USB serial devices typically appear as `/dev/tty.usbserial-*` or `/dev/tty.usbmodem-*`.
+
+To find your device:
+```bash
+ls /dev/tty.usb*
+# Example output: /dev/tty.usbserial-1420
+```
+
+Update the `port` parameter in your launch file or configuration to match your device, e.g.:
+```xml
+<param name="port" value="/dev/tty.usbserial-1420" />
+```
+
+If you have connection issues, ensure you have the correct drivers installed for your USB-to-serial adapter and check permissions as described in the setup file.
+
+#### Example: Launch File Configuration (macOS)
+
+Suppose your device is `/dev/tty.usbserial-1420`. Edit your launch file (`launch/ahrs-8.launch`) as follows:
+
+```xml
+<launch>
+  <node pkg="sparton_ahrs8_driver" type="ahrs8_nmea.py" name="ahrs8_nmea" output="screen">
+    <param name="port" value="/dev/tty.usbserial-1420" />
+    <param name="baud" value="115200" />
+    <param name="frame_id" value="ahrs8_imu" />
+  </node>
+</launch>
+```
+
+#### Example: Python Script Usage (macOS)
+
+You can also run the script directly, specifying the port:
+
+```bash
+mamba activate sparton
+python scripts/ahrs8_nmea.py --port /dev/tty.usbserial-1420 --baud 115200 --frame_id ahrs8_imu
+```
+
 ### Quick Start (macOS + Mamba)
 
 1. **Clone this branch:**
