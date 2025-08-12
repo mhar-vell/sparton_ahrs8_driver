@@ -1,17 +1,51 @@
 # sparton_ahrs8_driver
 
+## Branch for macOS and Mamba
+
+This branch (`b166er`) is specifically adapted for use on **macOS** and with the **Mamba** environment manager. If you are using macOS, follow the instructions below to set up your environment and run the driver.
+
+For **detailed instructions and troubleshooting**, see [`macOS_Mamba_SETUP.md`](macOS_Mamba_SETUP.md).
+
+### Quick Start (macOS + Mamba)
+
+1. **Clone this branch:**
+  ```bash
+  git clone -b b166er https://github.com/mhar-vell/sparton_ahrs8_driver.git
+  cd sparton_ahrs8_driver
+  ```
+
+2. **Install [Mamba](https://github.com/mamba-org/mamba):**
+  ```bash
+  brew install mamba
+  # or follow instructions at https://github.com/mamba-org/mamba
+  ```
+
+3. **Create and activate environment:**
+  ```bash
+  mamba create -n sparton python=3.10
+  mamba activate sparton
+  mamba install ros-noetic-desktop-full
+  # Install any other dependencies as needed
+  ```
+
+4. **Build and run as usual (see below for details).**
+
+
 ## Overview
 
 This is a ROS package for interfacing with the [Sparton AHRS-8](https://www.spartonnavex.com/product/ahrs-8/) hardware. In particular, it communicates with the sensor using NMEA protocol and publishes the IMU data as ROS sensor messages.
 
 The `sparton_ahrs8_driver` package has been tested under [ROS](http://www.ros.org) Kinetic and Ubuntu 16.04 LTS. The source code is released under a [MIT License](LICENSE.md).
 
+> **Note:** This branch is updated for compatibility with macOS and mamba. For Linux/Ubuntu, use the `master` branch.
+
 ## Usage
 
 1. Clone the repository to your catkin workspace:
 ```bash
+# For macOS and mamba, see instructions above.
 cd ~/catkin_ws/src
-git clone https://www.github.com/Mayankm96/sparton_ahrs8_driver.git
+git clone https://github.com/mhar-vell/sparton_ahrs8_driver.git -b b166er
 ```
 2. Build the package:
 ```bash
