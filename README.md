@@ -1,12 +1,12 @@
 # sparton_ahrs8_driver
 
-## Branch for macOS and Mamba
+<h2 style="color:#bd93f9;background:#282a36;padding:4px 8px;border-radius:6px;">Branch for macOS and Mamba</h2>
 
 This branch (`b166er`) is specifically adapted for use on **macOS** and with the **Mamba** environment manager. If you are using macOS, follow the instructions below to set up your environment and run the driver.
 
 For **detailed instructions and troubleshooting**, see [`macOS_Mamba_SETUP.md`](macOS_Mamba_SETUP.md).
 
-### macOS USB Serial Device Orientation
+<h3 style="color:#50fa7b;background:#282a36;padding:2px 8px;border-radius:6px;">macOS USB Serial Device Orientation</h3>
 
 On macOS, USB serial devices typically appear as `/dev/tty.usbserial-*` or `/dev/tty.usbmodem-*`.
 
@@ -23,7 +23,7 @@ Update the `port` parameter in your launch file or configuration to match your d
 
 If you have connection issues, ensure you have the correct drivers installed for your USB-to-serial adapter and check permissions as described in the setup file.
 
-#### Example: Launch File Configuration (macOS)
+<h4 style="color:#ff79c6;background:#282a36;padding:2px 8px;border-radius:6px;">Example: Launch File Configuration (macOS)</h4>
 
 Suppose your device is `/dev/tty.usbserial-1420`. Edit your launch file (`launch/ahrs-8.launch`) as follows:
 
@@ -37,7 +37,7 @@ Suppose your device is `/dev/tty.usbserial-1420`. Edit your launch file (`launch
 </launch>
 ```
 
-#### Example: Python Script Usage (macOS)
+<h4 style="color:#ff79c6;background:#282a36;padding:2px 8px;border-radius:6px;">Example: Python Script Usage (macOS)</h4>
 
 You can also run the script directly, specifying the port:
 
@@ -46,7 +46,7 @@ mamba activate sparton
 python scripts/ahrs8_nmea.py --port /dev/tty.usbserial-1420 --baud 115200 --frame_id ahrs8_imu
 ```
 
-### Quick Start (macOS + Mamba)
+<h3 style="color:#50fa7b;background:#282a36;padding:2px 8px;border-radius:6px;">Quick Start (macOS + Mamba)</h3>
 
 1. **Clone this branch:**
   ```bash
@@ -71,7 +71,7 @@ python scripts/ahrs8_nmea.py --port /dev/tty.usbserial-1420 --baud 115200 --fram
 4. **Build and run as usual (see below for details).**
 
 
-## Overview
+<h2 style="color:#bd93f9;background:#282a36;padding:4px 8px;border-radius:6px;">Overview</h2>
 
 This is a ROS package for interfacing with the [Sparton AHRS-8](https://www.spartonnavex.com/product/ahrs-8/) hardware. In particular, it communicates with the sensor using NMEA protocol and publishes the IMU data as ROS sensor messages.
 
@@ -79,7 +79,7 @@ The `sparton_ahrs8_driver` package has been tested under [ROS](http://www.ros.or
 
 > **Note:** This branch is updated for compatibility with macOS and mamba. For Linux/Ubuntu, use the `master` branch.
 
-## Usage
+<h2 style="color:#bd93f9;background:#282a36;padding:4px 8px;border-radius:6px;">Usage</h2>
 
 1. Clone the repository to your catkin workspace:
 ```bash
@@ -106,13 +106,13 @@ chmod +x sparton_ahrs8_driver/scripts/ahrs8_nmea.py
 roslaunch sparton_ahrs8_driver ahrs-8.launch
 ```
 
-## Node
+<h2 style="color:#bd93f9;background:#282a36;padding:4px 8px;border-radius:6px;">Node</h2>
 
-### ahrs8_nmea.py
+<h3 style="color:#50fa7b;background:#282a36;padding:2px 8px;border-radius:6px;">ahrs8_nmea.py</h3>
 
 The node communicate with the sensor using the NMEA protocol and publishes IMU data.
 
-#### Parameters
+<h4 style="color:#ff79c6;background:#282a36;padding:2px 8px;border-radius:6px;">Parameters</h4>
 * **`~frame_id`** (string, default: `ahrs8_imu`)
   Frame ID for this plugin
 * **`~port`** (string, default: `/dev/ttyUSB0`)
@@ -120,7 +120,7 @@ The node communicate with the sensor using the NMEA protocol and publishes IMU d
 * **`~baud`** (double, default: `115200`)
   Baud rate for communication with the sensor
 
-#### Published Topics
+<h4 style="color:#ff79c6;background:#282a36;padding:2px 8px;border-radius:6px;">Published Topics</h4>
 
 * **`~imu/data`** ([sensor_msgs/Imu])
   IMU orientation data, orientation in the `ahrs8_imu` frame
